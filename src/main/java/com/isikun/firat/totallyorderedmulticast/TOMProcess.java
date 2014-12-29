@@ -3,7 +3,6 @@ package com.isikun.firat.totallyorderedmulticast;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
-import java.net.MulticastSocket;
 import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -33,7 +32,7 @@ public class TOMProcess {
 
     public static volatile int currentState;
 
-    private static volatile int balance;
+    private static volatile double balance;
 
     public volatile Hashtable<Integer, Boolean> waitingForConnection;
     public volatile Hashtable<Integer, Boolean> shouldConnect;
@@ -76,12 +75,40 @@ public class TOMProcess {
                             outboundConsumer = new QueueConsumer(outboundQueue);
                             new Thread(outboundConsumer).start();
                             initSequence();
+                            terminalInterface();
                         }
                     },
                     1000
             );
         }
 
+
+    }
+
+    private synchronized void terminalInterface() {
+        System.out.println("Supported actions are / * + -");
+        System.out.println("Input one action and an integer for update. e.g. +2 /4");
+        System.out.println("Input X to terminate");
+        Scanner input = new Scanner(System.in);
+        boolean running = true;
+        while (running){
+            String line = input.nextLine();
+            if(line.contains("X")){
+                running = false;
+                currentState = TOMProcess.STATE_SHUTTING_DOWN;
+                break;
+            } else if (line.startsWith("+")){
+                double item = Double.parseDouble(String.valueOf(line.charAt(1)));
+            } else if (line.startsWith("-")){
+                double item = Double.parseDouble(String.valueOf(line.charAt(1)));
+            } else if (line.startsWith("*")){
+                double item = Double.parseDouble(String.valueOf(line.charAt(1)));
+            } else if (line.startsWith("/")){
+                double item = Double.parseDouble(String.valueOf(line.charAt(1)));
+            } else {
+                System.out.println("Invalid Input");
+            }
+        }
 
     }
 
@@ -184,7 +211,6 @@ public class TOMProcess {
         if(socketServer != null){
             socketServer.setRunning(false);
         }
-        System.out.println("Press 1 to generate event\n Press 2 to post event");
     }
 
     public static boolean isServerUp(int port) {
@@ -251,17 +277,22 @@ public class TOMProcess {
         return totalProcesses;
     }
 
-    public static int getBalance() {
+    public static double getBalance() {
         return balance;
     }
 
-    public static void setBalance(int balance) {
+    public static void setBalance(double balance) {
         TOMProcess.balance = balance;
     }
 
     public static boolean processTransaction(TOMMessage request) {
-        setBalance(request.getPayLoad() + getBalance());
+        processPayload(request.getPayLoad());
+        setBalance(getBalance());
         LOGGER.info("New Balance: " + getBalance());
         return true;
+    }
+
+    private static void processPayload(String payload) {
+
     }
 }

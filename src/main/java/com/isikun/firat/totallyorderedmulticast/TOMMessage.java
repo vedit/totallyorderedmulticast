@@ -20,7 +20,7 @@ public class TOMMessage implements Comparable<TOMMessage>{
     private int toPort;
     private int action;
     private int timestamp;
-    private int payLoad;
+    private String payLoad;
 
     public static final int ACTION_INIT = 1;
     public static final int ACTION_ACK = 10;
@@ -39,7 +39,7 @@ public class TOMMessage implements Comparable<TOMMessage>{
         this.timestamp = TOMTimestamp.getTime();
     }
 
-    public TOMMessage(int fromPid, int fromPort, int toPid, int toPort, int action, int payLoad) {
+    public TOMMessage(int fromPid, int fromPort, int toPid, int toPort, int action, String payLoad) {
         this.fromPid = fromPid;
         this.toPid = toPid;
         this.fromPort = fromPort;
@@ -180,11 +180,11 @@ public class TOMMessage implements Comparable<TOMMessage>{
         this.toPort = toPort;
     }
 
-    public int getPayLoad() {
+    public String getPayLoad() {
         return payLoad;
     }
 
-    public void setPayLoad(int payLoad) {
+    public void setPayLoad(String payLoad) {
         this.payLoad = payLoad;
     }
 

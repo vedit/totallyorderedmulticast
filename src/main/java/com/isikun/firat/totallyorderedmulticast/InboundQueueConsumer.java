@@ -1,9 +1,8 @@
 package com.isikun.firat.totallyorderedmulticast;
 
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.SortedMap;
+import com.google.gson.Gson;
+
+import java.util.*;
 
 /**
  * Created by hexenoid on 12/29/14.
@@ -38,6 +37,26 @@ public class InboundQueueConsumer implements Runnable{
                 e.printStackTrace();
             }
         }
+    }
+
+    public String serialize(SortedMap queue){
+        Gson gson = new Gson();
+        String json = gson.toJson(queue);
+        return json;
+    }
+
+    public String toString(){
+        return serialize(queue);
+//        for (Map.Entry<TOMMessage, HashMap<Integer, Boolean>> entry : queue.entrySet()) {
+//            TOMMessage message = entry.getKey();
+//            HashMap<Integer, Boolean> acklist = entry.getValue();
+//            for (Map.Entry<Integer, Boolean> acks : acklist.entrySet()) {
+//                Integer port = acks.getKey();
+//                Boolean acklgfist = acks.getValue();
+//            }
+//
+//        }
+
     }
 
 }

@@ -8,7 +8,9 @@ import java.net.MulticastSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.HashMap;
+import java.util.Hashtable;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.logging.Logger;
 
@@ -19,30 +21,31 @@ public class Multicaster {
     private final static Logger LOGGER = Logger.getLogger("Multicaster");
     private volatile boolean running;
 
-    private volatile Object[][] socketList; //muhtemelen hashmap yapmak zorunda kalcan
-
+//    private volatile Object[][] socketList; //muhtemelen hashmap yapmak zorunda kalcan
+    private volatile Hashtable<Integer, Object[]> socketList;
     private List<Integer> portList;
 
     public Multicaster(){
-        socketList = new Object[portList.size()][];
+        socketList = new Hashtable<>();
         portList = TOMProcess.getInstance().getPorts();
         running = true;
         for(int port: portList){
             if(port != TOMProcess.getInstance().getPort()){
-                socketList[port] = createSocket(port);
+                socketList.put(port, createSocket(port));
             }
         }
     }
-
 
     public void multicast(TOMMessage message){
         TOMMessage response;
         TOMTimestamp.increment();
         HashMap<Integer, Boolean> ackList = TOMProcess.getAckList(message.getFromPort());
         TOMProcess.getInboundQueue().put(message, ackList);
-        for (Object[] aSocketList : socketList) {
-            PrintWriter tmpWriter = (PrintWriter) aSocketList[1];
-            BufferedReader tmpReader = (BufferedReader) aSocketList[0];
+        for (Map.Entry<Integer, Object[]> entry : socketList.entrySet()) {
+            Integer key = entry.getKey();
+            Object[] ioComponents = entry.getValue();
+            PrintWriter tmpWriter = (PrintWriter) ioComponents[1];
+            BufferedReader tmpReader = (BufferedReader) ioComponents[0];
             tmpWriter.println(TOMMessage.serialize(message));
             try {
                 response = TOMMessage.deserialize(tmpReader.readLine());
@@ -82,9 +85,11 @@ public class Multicaster {
 
     public void stopRunning() {
         this.running = false;
-        for (Object[] aSocketList : socketList) {
-            BufferedReader tmpReader = (BufferedReader) aSocketList[0];
-            PrintWriter tmpWriter = (PrintWriter) aSocketList[1];
+        for (Map.Entry<Integer, Object[]> entry : socketList.entrySet()) {
+            Integer key = entry.getKey();
+            Object[] ioComponents = entry.getValue();
+            BufferedReader tmpReader = (BufferedReader) ioComponents[0];
+            PrintWriter tmpWriter = (PrintWriter) ioComponents[1];
             try {
                 tmpReader.close();
             } catch (IOException e) {
