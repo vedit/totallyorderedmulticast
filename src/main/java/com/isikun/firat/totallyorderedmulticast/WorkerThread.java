@@ -5,6 +5,10 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.logging.Logger;
 
 /**
@@ -13,51 +17,88 @@ import java.util.logging.Logger;
 public class WorkerThread implements Runnable {
 
     private final Socket clientSocket;
-
-    public WorkerThread(Socket s) {
-        clientSocket = s;
-    }
     private final static Logger LOGGER = Logger.getLogger("WorkerThread");
+    private static PrintWriter socketOut;
+    private static BufferedReader socketIn;
+    final Queue<TOMMessage> queue;
+    private boolean running;
 
-    public void run() {
-        //taken from Server4SingleClient
-        PrintWriter socketOut = null;
-        BufferedReader socketIn = null;
+    public WorkerThread(Socket socket) {
+        running = true;
+        clientSocket = socket;
         try {
-            //will use socketOut to send text to the server over the socket
+            clientSocket.setSoTimeout(5000);
+        } catch (SocketException e) {
+            e.printStackTrace();
+        }
+        try {
             socketOut = new PrintWriter(clientSocket.getOutputStream(), true);
-            //will use socketIn to receive text from the server over the socket
             socketIn = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
         } catch (IOException e) {
             LOGGER.severe("Cannot get I/O for the connection.");
             e.printStackTrace();
-            System.exit(1);
         }
+        queue = new ConcurrentLinkedQueue<>();
+    }
 
-        TOMMessage request = null;
-        TOMMessage response = null;
+
+    @Override
+    public void run() {
+        System.out.println("Worker spawned on " + clientSocket.getPort());
+        while (running) {
+            TOMMessage received = receive();
+            if (received != null) {
+                System.out.println(received);
+                TOMMessage response = TOMMessage.processResponse(received);
+                if (response != null) {
+                    addToQueue(response);
+                }
+            }
+            if (queue.peek() != null) {
+                TOMMessage message = queue.poll();
+                send(message);
+            }
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public static TOMMessage receive() {
+        TOMMessage result = null;
         try {
-            request = TOMMessage.deserialize(socketIn.readLine());
+            result = TOMMessage.deserialize(socketIn.readLine());
+        } catch (SocketTimeoutException e) {
+            LOGGER.info("ReadTimeout");
         } catch (IOException e) {
             e.printStackTrace();
         }
-        if (request != null) {
-            response = TOMMessage.processResponse(request);
-        } else {
-            LOGGER.warning("Request is null");
-        }
+        return result;
+    }
 
-        socketOut.println(TOMMessage.serialize(response));
-        LOGGER.info(TOMProcess.getInstance().getPid() + " recieved from " + request.getFromPid() + " at port:" + clientSocket.getPort() + " localport:" + clientSocket.getLocalPort() + ": \n\t\"" + request + "\"");
-        LOGGER.info(TOMProcess.getInstance().getPid() + " sent: \n\t\"" + response + "\"");
+    public static void send(TOMMessage message) {
+        TOMTimestamp.increment();
+        socketOut.println(TOMMessage.serialize(message));
+    }
 
-        //close all streams
-        socketOut.close();
-        try {
-            socketIn.close();
-            clientSocket.close();
-        } catch (IOException e) {
-            e.printStackTrace();
+    public synchronized void addToQueue(TOMMessage message) {
+        queue.offer(message);
+    }
+
+    public boolean isRunning() {
+        return running;
+    }
+
+    public void setRunning(boolean running) {
+        this.running = running;
+        if (!running) {
+            try {
+                clientSocket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 

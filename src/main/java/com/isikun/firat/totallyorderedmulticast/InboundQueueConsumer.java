@@ -8,7 +8,7 @@ import java.util.*;
  * Created by hexenoid on 12/29/14.
  */
 public class InboundQueueConsumer implements Runnable{
-    final SortedMap<TOMMessage, HashMap<Integer, Boolean>> queue;
+    final SortedMap<TOMMessage, Boolean[]> queue;
 
     public InboundQueueConsumer(SortedMap queue) {
         this.queue = queue;
@@ -17,11 +17,10 @@ public class InboundQueueConsumer implements Runnable{
     @Override
     public void run() {
         while (true) {
-            if (queue.firstKey() != null) {
+            if (!queue.isEmpty()) {
                 boolean deliverable = true;
                 TOMMessage request = queue.firstKey();
-                Collection<Boolean> acks = queue.get(request).values();
-                for(Boolean ack: acks){
+                for(Boolean ack: queue.get(request)){
                     if(!ack){
                         deliverable = false;
                     }
@@ -57,6 +56,33 @@ public class InboundQueueConsumer implements Runnable{
 //
 //        }
 
+    }
+
+    public synchronized void addToInboundQueue(TOMMessage message){
+        Boolean[] tmpAcklist = new Boolean[TOMProcess.getInstance().getTotalProcesses()];
+        for(int i=0; i<tmpAcklist.length; i++){
+            tmpAcklist[i] = false;
+        }
+        queue.put(message, tmpAcklist);
+    }
+
+    public synchronized boolean ackMessage(TOMMessage ack){
+        boolean result = false;
+
+        for (Map.Entry<TOMMessage, Boolean[]> entry : queue.entrySet()) {
+            TOMMessage message = entry.getKey();
+            if(message.getUuid() == ack.getUuid()){
+                Boolean[] acklist = entry.getValue();
+                for(int i = 0; i < acklist.length; i++){
+                    if(i == ack.getFromPid()){
+                        result = true;
+                        acklist[i] = true;
+                    }
+                }
+                queue.put(message, acklist);
+            }
+        }
+        return result;
     }
 
 }

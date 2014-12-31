@@ -24,6 +24,8 @@ public class TOMProcess {
 
     private static volatile ServerThread socketServer;
 
+    private static volatile List<WorkerThread> workerThreads;
+
     private static volatile TOMTimestamp timestamp;
     private final static String propFileName = System.getProperty("configFile", "config0.properties");
     private final static Logger LOGGER = Logger.getLogger("TOMProcess");
@@ -60,6 +62,7 @@ public class TOMProcess {
         currentState = STATE_INIT;
         LOGGER.info("Setting state to Init");
         loadConfig();
+        workerThreads = new ArrayList<>();
         shouldConnect = new Hashtable<>();
         waitingForConnection = new Hashtable<>();
         timestamp = TOMTimestamp.getInstance();
@@ -97,16 +100,12 @@ public class TOMProcess {
                 running = false;
                 currentState = TOMProcess.STATE_SHUTTING_DOWN;
                 break;
-            } else if (line.startsWith("+")){
-                double item = Double.parseDouble(String.valueOf(line.charAt(1)));
-            } else if (line.startsWith("-")){
-                double item = Double.parseDouble(String.valueOf(line.charAt(1)));
-            } else if (line.startsWith("*")){
-                double item = Double.parseDouble(String.valueOf(line.charAt(1)));
-            } else if (line.startsWith("/")){
-                double item = Double.parseDouble(String.valueOf(line.charAt(1)));
             } else {
-                System.out.println("Invalid Input");
+                try {
+                    TOMProcess.multicast(TOMMessage.transactionMulticast(new TOMOperation(line).serialize()));
+                } catch (InvalidPropertiesFormatException e) {
+                    e.printStackTrace();
+                }
             }
         }
 
@@ -153,16 +152,17 @@ public class TOMProcess {
         for (Map.Entry<Integer, Boolean> entry : waitingForConnection.entrySet()) {
             Integer key = entry.getKey();
             Boolean value = entry.getValue();
-            LOGGER.finest(key + " " + value);
+            LOGGER.info(key + " " + value);
         }
         System.out.println("SHOULD CONNECT TO THESE NODES:");
         for (Map.Entry<Integer, Boolean> entry : shouldConnect.entrySet()) {
             Integer key = entry.getKey();
             Boolean value = entry.getValue();
-            LOGGER.finest(key + " " + value);
+            LOGGER.info(key + " " + value);
         }
         if (pid == 0) {
-            socketServer = ServerThread.getInstance();
+            socketServer = new ServerThread(port);
+            socketServer.startServer();
         } else {
             for (int i = pid; i > 0; i--) {
                 try{
@@ -174,11 +174,12 @@ public class TOMProcess {
                         isUp = isServerUp(tempPort);
                         Thread.sleep(500);
                     }
-                    TOMMessage response = TOMMessage.initMessage(tempPid, tempPort).sendMessage();
+                    TOMMessage response = TOMMessage.initMessage(tempPid, tempPort).unicast(null);
                     if (response.getAction() == TOMMessage.ACTION_ACK) {
                         shouldConnect.put(tempPid, true);
                         if (pid != (totalProcesses - 1)) {
-                            socketServer = ServerThread.getInstance();
+                            socketServer = new ServerThread(port);
+                            socketServer.startServer();
                             LOGGER.info("Starting server for init sequence " + pid);
                         }
                     }
@@ -286,13 +287,42 @@ public class TOMProcess {
     }
 
     public static boolean processTransaction(TOMMessage request) {
-        processPayload(request.getPayLoad());
-        setBalance(getBalance());
+        TOMTimestamp.setTime(request.getTimestamp());
+        TOMTimestamp.increment();
+        setBalance(TOMOperation.deserialize(request.getPayLoad()).operate(getBalance()));
         LOGGER.info("New Balance: " + getBalance());
         return true;
     }
 
-    private static void processPayload(String payload) {
 
+
+    public WorkerThread addWorker(Socket clientSocket){
+        WorkerThread workerThread = new WorkerThread(clientSocket);
+        workerThreads.add(workerThread);
+        new Thread(workerThread).start();
+        return workerThread;
+    }
+
+    public WorkerThread addWorker(int port){
+        Socket clientSocket = null;
+        try {
+            clientSocket = new Socket("127.0.0.1", port);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        WorkerThread workerThread = new WorkerThread(clientSocket);
+        workerThreads.add(workerThread);
+        new Thread(workerThread).start();
+        return workerThread;
+    }
+
+    public static List<WorkerThread> getWorkerThreads() {
+        return workerThreads;
+    }
+
+    public static synchronized void multicast(TOMMessage message){
+        for(WorkerThread workerThread: workerThreads){
+            workerThread.addToQueue(message);
+        }
     }
 }
