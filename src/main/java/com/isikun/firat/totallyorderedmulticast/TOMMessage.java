@@ -118,6 +118,7 @@ public class TOMMessage implements Comparable<TOMMessage>{
                     break;
                 case TOMMessage.ACTION_ACK:
                     response = ackMessage(request.fromPid, request.fromPort);
+                    response = null;
                     break;
                 case TOMMessage.ACTION_TRANSACTION:
                     TOMTimestamp.setTime(request.getTimestamp());
@@ -143,7 +144,7 @@ public class TOMMessage implements Comparable<TOMMessage>{
             case TOMMessage.ACTION_TRANSACTION:
                 TOMTimestamp.setTime(request.getTimestamp());
                 TOMProcess.getInboundQueue().put(request, TOMProcess.getAckList());
-                response = ackMessage(request.fromPid, request.fromPort);
+                response = ackMulticast(request.getUuid());
                 break;
             default:
                 response = null;

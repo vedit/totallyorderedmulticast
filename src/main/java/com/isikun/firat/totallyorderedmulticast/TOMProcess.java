@@ -20,13 +20,11 @@ public class TOMProcess {
 
     private static InboundQueueConsumer inboundConsumer;
     public static volatile SortedMap<TOMMessage, HashMap<Integer, Boolean>> inboundQueue;
-    private static QueueConsumer outboundConsumer;
 
     private static volatile ServerThread socketServer;
 
     private static volatile List<WorkerThread> workerThreads;
 
-    private static volatile TOMTimestamp timestamp;
     private final static String propFileName = System.getProperty("configFile", "config0.properties");
     private final static Logger LOGGER = Logger.getLogger("TOMProcess");
 
@@ -65,7 +63,7 @@ public class TOMProcess {
         workerThreads = new ArrayList<>();
         shouldConnect = new Hashtable<>();
         waitingForConnection = new Hashtable<>();
-        timestamp = TOMTimestamp.getInstance();
+        TOMTimestamp.getInstance();
         outboundQueue = new ConcurrentLinkedQueue<TOMMessage>();
         inboundQueue = Collections.synchronizedSortedMap(new TreeMap<TOMMessage, HashMap<Integer, Boolean>>());
         synchronized (TOMProcess.class) {
@@ -75,8 +73,6 @@ public class TOMProcess {
                         public void run() {
                             inboundConsumer = new InboundQueueConsumer(inboundQueue);
                             new Thread(inboundConsumer).start();
-                            outboundConsumer = new QueueConsumer(outboundQueue);
-                            new Thread(outboundConsumer).start();
                             initSequence();
                             terminalInterface();
                         }

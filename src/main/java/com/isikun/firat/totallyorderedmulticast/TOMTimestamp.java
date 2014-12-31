@@ -23,7 +23,7 @@ public class TOMTimestamp {
     }
 
     private TOMTimestamp(){
-
+        time = 0;
     }
     public static int getTime() {
         return time;
